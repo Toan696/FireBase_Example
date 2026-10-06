@@ -14,12 +14,13 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
   FirebaseFirestore db;
   Button btAdd, btShow;
-  EditText etTitle, etContent, etImgCover;
+  EditText etId, etTitle, etContent, etImgCover;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +38,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     btAdd = findViewById(R.id.btAdd);
     btShow = findViewById(R.id.btShow);
+    etId = findViewById(R.id.etId);
     etTitle = findViewById(R.id.etTitle);
     etContent = findViewById(R.id.etContent);
     etImgCover = findViewById(R.id.etImgCover);
@@ -48,25 +50,47 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
   @Override
   public void onClick(View view) {
     if (view.getId() == R.id.btAdd) {
+      String id = etId.getText().toString().trim();
       String title = etTitle.getText().toString().trim();
       String content = etContent.getText().toString().trim();
       String imgCover = etImgCover.getText().toString().trim();
 
+      if (id.isEmpty()) {
+        Toast.makeText(this, "Vui lòng nhập ID", Toast.LENGTH_SHORT).show();
+        return;
+      }
+      if (id.contains("/")) {
+        Toast.makeText(this, "ID không được chứa dấu /", Toast.LENGTH_SHORT).show();
+        return;
+      }
       if (title.isEmpty()) {
         Toast.makeText(this, "Vui lòng nhập tiêu đề", Toast.LENGTH_SHORT).show();
         return;
       }
 
-      Article newArticle = new Article(title, content, imgCover, 0); // view ban đầu = 0
-      db.collection("articles").add(newArticle)
-              .addOnSuccessListener(ref -> {
-                Toast.makeText(this, "Thêm bài viết thành công!", Toast.LENGTH_SHORT).show();
-                etTitle.setText("");
-                etContent.setText("");
-                etImgCover.setText("");
-              })
-              .addOnFailureListener(e ->
-                      Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+      // Dùng chính ID nhập vào làm ID của document trên Firestore
+      DocumentReference ref = db.collection("articles").document(id);
+
+      // Kiểm tra ID đã tồn tại chưa (tránh ghi đè làm mất lượt view)
+      ref.get().addOnSuccessListener(snapshot -> {
+        if (snapshot.exists()) {
+          Toast.makeText(this, "ID đã tồn tại, hãy nhập ID khác", Toast.LENGTH_SHORT).show();
+          return;
+        }
+
+        Article newArticle = new Article(id, title, content, imgCover, 0); // view ban đầu = 0
+        ref.set(newArticle)
+                .addOnSuccessListener(unused -> {
+                  Toast.makeText(this, "Thêm bài viết thành công!", Toast.LENGTH_SHORT).show();
+                  etId.setText("");
+                  etTitle.setText("");
+                  etContent.setText("");
+                  etImgCover.setText("");
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+      }).addOnFailureListener(e ->
+              Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
 
     } else if (view.getId() == R.id.btShow) {
       startActivity(new Intent(getBaseContext(), ShowDataActivity.class));
